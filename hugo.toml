@@ -2,6 +2,7 @@ baseURL = 'https://shawnbot.org/'
 languageCode = 'en-us'
 title = 'shawnbot.org'
 theme = 'book'
+disableKinds = ['RSS']
 
 [params]
   # Follow the OS color scheme (baseof pins data-theme="light" by default,

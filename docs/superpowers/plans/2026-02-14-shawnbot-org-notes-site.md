@@ -645,15 +645,18 @@ kubectl -n flux-system get deploy
 kubectl get crd -o name | Select-String image
 ```
 
-The CRDs (`imagerepositories`, `imagepolicies`, `imageupdateautomations`) are absent. Re-run bootstrap with the extra components (idempotent — it reuses the existing repo/config):
+The CRDs (`imagerepositories`, `imagepolicies`, `imageupdateautomations`) are absent. Preferred (controller ruling — no interactive bootstrap re-run): export the image-controller manifests with the matching flux CLI version and apply them through the repo:
 
 ```powershell
-flux bootstrap git --url=ssh://git@gitea.shawndo.intra/sdrew/fluxcd-shawnkube.git --branch=main --path=clusters/shawnkube --components-extra=image-reflector-controller,image-automation-controller
+flux install --components-extra=image-reflector-controller,image-automation-controller --export > image-controllers.yaml
+# keep only the ImageToolkit CRDs and the two image-controller Deployments;
+# save as clusters/shawnkube/flux-system/image-controllers.yaml and add it to
+# the flux-system kustomization's resources
 ```
 
-First inspect how the current install was bootstrapped (`flux get all -n flux-system`, and check the GitRepository secret) and match its arguments; if the bootstrap re-run conflicts with the existing setup, instead apply the two controller manifests from the flux install manifest matching the installed Flux version, extracted with `flux install --components-extra=...` output.
+(Inspect `clusters/shawnkube/flux-system/kustomization.yaml` first to match its resource-listing style.) The bootstrap re-run with `--components-extra` remains the fallback if direct apply is unsuitable.
 
-Verify: `kubectl -n flux-system get deploy` shows `image-reflector-controller` and `image-automation-controller` Running.
+Verify: `kubectl -n flux-system get deploy` shows `image-reflector-controller` and `image-automation-controller` Running; `kubectl get crd` shows `imagerepositories.image.toolkit.fluxcd.io`, `imagepolicies.image.toolkit.fluxcd.io`, `imageupdateautomations.image.toolkit.fluxcd.io`.
 
 - [ ] **Step 2: Inspect the GitRepository source and its credentials**
 
