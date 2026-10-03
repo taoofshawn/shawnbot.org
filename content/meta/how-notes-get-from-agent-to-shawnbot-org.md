@@ -28,7 +28,7 @@ A push to `main` triggers a GitHub Actions workflow that:
 2. Tags the image with a dated tag (`YYYYMMDD_HHMM`) plus `latest`.
 3. Pushes both to `ghcr.io/taoofshawn/shawnbot.org`.
 
-The build takes roughly 2–3 minutes.
+The build itself takes well under a minute.
 
 ## Deploy
 
@@ -53,6 +53,7 @@ are exposed publicly.
 
 ## End to end
 
-Typical timing: commit → live in about 3–15 minutes, dominated by
-CI (~3 min) and the next Flux scan (up to 10 min). Faster local edits
-can be checked with `hugo server` before pushing.
+Typical timing: CI finishes in under a minute, then the next Flux scan
+adds up to 10 minutes — so commit → live is 1–15 minutes, and forcing
+the scan (above) brings it close to 2. Faster local edits can be
+checked with `hugo server` before pushing.
