@@ -8,3 +8,9 @@ theme = 'book'
   BookSearch = false
   BookToC = true
   BookSection = '*'
+
+[menu]
+  [[menu.after]]
+    name = "Search"
+    url = "/search/"
+    weight = 100

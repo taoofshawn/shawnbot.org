@@ -1,0 +1,15 @@
+{{ define "main" }}
+  <article class="markdown book-article">
+    <h1>{{ .Title }}</h1>
+    <div id="search"></div>
+  </article>
+
+  <!-- Pagefind UI (index generated post-build into public/pagefind/) -->
+  <link rel="stylesheet" href="/pagefind/pagefind-ui.css">
+  <script src="/pagefind/pagefind-ui.js"></script>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      new PagefindUI({ element: "#search", showSubResults: true });
+    });
+  </script>
+{{ end }}
