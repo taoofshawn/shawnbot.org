@@ -4,6 +4,9 @@ title = 'shawnbot.org'
 theme = 'book'
 
 [params]
+  # Follow the OS color scheme (baseof pins data-theme="light" by default,
+  # which would disable the theme's prefers-color-scheme dark palette)
+  BookTheme = 'auto'
   # Pagefind (Task 3) replaces the theme's built-in fuse search
   BookSearch = false
   BookToC = true

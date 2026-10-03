@@ -1,0 +1,189 @@
+/*
+  shawnbot.org — design tokens, layered on hugo-book v0.15.0.
+
+  Hook: this file shadows the theme's empty assets/styles/custom.css (Hugo
+  resolves project assets first) and is concatenated LAST by the theme's
+  styles/index.yaml. No theme files are forked. (hugo-book v0.15.0 has no
+  SCSS pipeline, so the override is plain CSS custom properties, not
+  $variables.)
+
+  == Design plan (frontend-design skill, two-pass) ==
+  Subject: an engineering notebook written by an AI agent for its one human
+  reader. Job: comfortable long-form reading, quick lookup.
+
+  Principles:
+    1. Notebook, not website — calm paper, honest ink, pencil markup.
+    2. Reading is the interface — prose gets the serif and the measure;
+       chrome (menu, TOC, footer, search) steps back in smaller system sans.
+    3. One bold place — the ochre "pencil" link ink, carried by links, the
+       active menu entry, and focus rings. Everything else stays quiet.
+
+  Color (light / dark):
+    paper    #fafaf8 / #1b2225   page and search surfaces
+    ink      #2b3338 / #d8dee0   body text
+    pencil   #8a5a00 / #d9a45b   links, active nav, focus rings (accent)
+    plum     #6e5f8e / #b3a3d1   visited links (lookup feedback)
+    graphite #67716e / #93a1a4   secondary text
+    wash     #eef0ed / #242f34   code, tables  (theme --gray-100)
+    border   #dbdfdc / #37444b   rules, inputs (theme --gray-200)
+
+  Type (system stacks only — zero webfont bytes):
+    prose + headings: Charter, Bitstream Charter, Sitka Text, Cambria, Georgia
+    chrome:           system-ui sans (menu, TOC, footer, Pagefind UI)
+    code:             ui-monospace stack
+    body 17px (--font-size: 106.25%), prose line-height 1.7.
+
+  Layout: theme structure untouched; article measure capped at 35rem
+  (~70-75 characters at 17px, under the 80-character spec — a ch-based cap
+  overshoots because ch is the digit width, wider than the average glyph),
+  line-height 1.7, left-aligned ragged right; the theme's max-width: 56rem
+  mobile breakpoint is kept as-is.
+
+  == Anti-default review (what changed and why) ==
+  - Draft 1: warm paper + terracotta links — rejected (skill tell #1:
+    warm-cream + Anthropic terracotta). Paper moved to neutral-cool #fafaf8,
+    accent moved to dark ochre "pencil" ink.
+  - Draft 2: phosphor-green dark accent — rejected (tell #2: acid green on
+    near-black). Dark accent is desaturated amber #d9a45b on blue-slate
+    #1b2225, and light mode — the primary mode — is dark-ochre on paper.
+  - Rejected outright: all-caps eyebrow labels; middle-dot meta strings
+    (theme dates use a calendar icon + plain date); monospace micro-labels;
+    "→" appended to links; numbered menu markers (the content is not a
+    sequence); hairline section rules (broadsheet tell); one border-radius
+    everywhere (theme's 0.25rem kept, used only where the theme uses it).
+
+  == Layering note ==
+  The theme scopes its palettes inside `@layer theme`; the unlayered rules
+  below therefore win regardless of order. Dark values sit on
+  higher-specificity selectors than the light `:root` block so they win back
+  in dark mode.
+*/
+
+/* ---------- Palette: light ---------- */
+:root {
+  --body-background: #fafaf8;
+  --body-font-color: #2b3338;
+
+  --color-link: #8a5a00;         /* pencil ochre — AA on paper (5.7:1) */
+  --color-visited-link: #6e5f8e; /* muted plum */
+
+  --gray-100: #eef0ed;
+  --gray-200: #dbdfdc;
+  --gray-500: #67716e;
+
+  /* Type stacks */
+  --body-font: Charter, 'Bitstream Charter', 'Sitka Text', Cambria, Georgia, serif;
+  --ui-font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --mono-font: ui-monospace, 'Cascadia Code', SFMono-Regular, Consolas, Menlo, monospace;
+
+  /* 17px body; rem-based theme spacing scales with it */
+  --font-size: 106.25%;
+}
+
+/* ---------- Palette: dark (higher specificity than the :root block) ---------- */
+:root[data-theme='dark'] {
+  --body-background: #1b2225;
+  --body-font-color: #d8dee0;
+
+  --color-link: #d9a45b;         /* desaturated amber — 7.3:1 on slate */
+  --color-visited-link: #b3a3d1;
+
+  --gray-100: #242f34;
+  --gray-200: #37444b;
+  --gray-500: #93a1a4;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-theme='auto'] {
+    --body-background: #1b2225;
+    --body-font-color: #d8dee0;
+
+    --color-link: #d9a45b;
+    --color-visited-link: #b3a3d1;
+
+    --gray-100: #242f34;
+    --gray-200: #37444b;
+    --gray-500: #93a1a4;
+  }
+}
+
+/* ---------- Type: prose vs chrome ----------
+   Chrome (menu, TOC, header, footer) keeps normalize's system-ui sans;
+   only article prose gets the serif. */
+.markdown {
+  font-family: var(--body-font);
+  line-height: 1.7;
+  max-width: 35rem;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.markdown code,
+.markdown pre {
+  font-family: var(--mono-font);
+}
+
+/* ---------- Links: the one carried identity ----------
+   Pencil-underline treatment, scoped to prose so menu/TOC stay quiet. */
+.markdown a[href] {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  text-decoration-color: color-mix(in srgb, var(--color-link) 45%, transparent);
+}
+
+.markdown a[href]:hover {
+  text-decoration-color: var(--color-link);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-link) 25%, transparent);
+}
+
+/* ---------- Layout ---------- */
+/* Breathing room on the content column once sidebars fit (>=56rem);
+   the theme's max-width: 56rem mobile block below this size is untouched. */
+@media screen and (min-width: 56rem) {
+  .book-page {
+    padding: 2rem;
+  }
+}
+
+/* ---------- Pagefind UI (search page) ----------
+   Declared on #search so they beat pagefind-ui.css's :root defaults
+   regardless of load order; the var() references flip with the theme's
+   light/dark palette automatically. */
+#search {
+  --pagefind-ui-primary: var(--color-link);
+  --pagefind-ui-text: var(--body-font-color);
+  --pagefind-ui-background: var(--body-background);
+  --pagefind-ui-border: var(--gray-200);
+  --pagefind-ui-tag: var(--gray-100);
+  --pagefind-ui-border-width: 1px;
+  --pagefind-ui-border-radius: 0.25rem;
+  --pagefind-ui-image-border-radius: 0.25rem;
+  --pagefind-ui-font: var(--ui-font);
+
+  font-family: var(--ui-font);
+  max-width: 35rem;
+}
+
+#search mark {
+  background: color-mix(in srgb, var(--color-link) 22%, transparent);
+  color: inherit;
+}
+
+/* ---------- Quality floor ---------- */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
