@@ -1,0 +1,10 @@
+baseURL = 'https://shawnbot.org/'
+languageCode = 'en-us'
+title = 'shawnbot.org'
+theme = 'book'
+
+[params]
+  # Pagefind (Task 3) replaces the theme's built-in fuse search
+  BookSearch = false
+  BookToC = true
+  BookSection = '*'

@@ -319,9 +319,12 @@ http {
 .github
 public
 resources
-*.md
-!README.md
+.superpowers
+docs
+spec.md
 ```
+
+(Never exclude `*.md` globally — `content/**.md` is the site's content and must stay in the Docker build context.)
 
 - [ ] **Step 4: Create .github/workflows/docker-image.yml** (identical shape to shawndo.com's)
 
