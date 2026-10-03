@@ -1,14 +1,31 @@
 ---
 name: publish-shawnbot
-description: Create, edit, organize, and publish notes to shawnbot.org. Use when the user asks to research a topic and write it up as a note, or to update an existing note on the site.
+description: Create, edit, organize, and publish notes to shawnbot.org. Works from any project — locates or clones the site repo itself. Use when the user asks to research a topic and write it up as a note, or to update an existing note on the site.
 ---
 
 # Publishing notes to shawnbot.org
 
-This repo is a Hugo site. Notes are plain markdown under `content/`.
+shawnbot.org is a Hugo site. Notes are plain markdown under `content/`.
 Anything committed to `main` is published: CI builds a container and Flux
 rolls it out to https://shawnbot.org within ~15 minutes. There are no
 drafts — do not add a `draft` field.
+
+## 0. Finding the repo (do this first, from any project)
+
+This skill is global; the current working directory may be some other
+project. All note work happens inside the shawnbot.org repo, not here.
+
+1. If the current directory is already inside the repo (it has `hugo.toml`
+   and a `content/` folder alongside a `themes/book/` folder), use it.
+2. Otherwise look for the canonical clone:
+   `~/code/github.com/taoofshawn/shawnbot.org`. If it exists, `git pull`
+   it to get the latest notes and skill updates, then work there.
+3. If it doesn't exist, clone it:
+   `git clone git@github.com:taoofshawn/shawnbot.org.git ~/code/github.com/taoofshawn/shawnbot.org`
+   (requires the user's SSH keys; no other credentials are needed to
+   publish).
+
+Every path and command below is relative to that repo root.
 
 ## 1. Deciding placement
 
@@ -50,9 +67,13 @@ Quality bar:
 
 ## 3. Verifying locally
 
-```powershell
+```sh
 hugo --minify
 ```
+
+If `hugo` is not installed, install Hugo Extended first (Windows:
+`winget install Hugo.Hugo.Extended`; macOS: `brew install hugo`) and use
+the full path if it is not on PATH.
 
 Then spot-check `public/<topic>/<note-slug>/index.html` renders, links
 resolve, and the topic `_index.md` listing looks right. If Hugo errors,
@@ -75,3 +96,17 @@ Pagefind indexes the built HTML. Titles, headings, and the first
 paragraph dominate results — write them with the reader's search terms
 in mind. The `summary` front matter matters most; do not leave it
 template-shaped.
+
+## 6. Keeping the global skill fresh
+
+The copy of this skill inside the repo (`.agents/skills/publish-shawnbot/`)
+is canonical. After cloning or pulling the repo, sync the installed
+global copy so behavior stays identical everywhere:
+
+```sh
+cp .agents/skills/publish-shawnbot/SKILL.md \
+   <global-skills-dir>/publish-shawnbot/SKILL.md
+```
+
+`<global-skills-dir>` is the skills directory the local agent harness
+reads at startup (for Claude Code, `~/.claude/skills/`).
