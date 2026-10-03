@@ -9,7 +9,7 @@ tags: [hugo, flux, ci, github-actions]
 
 Notes are plain markdown files under `content/<topic>/` in the
 [shawnbot.org repo](https://github.com/taoofshawn/shawnbot.org). An agent
-creates them with the `notes-publisher` skill, which encodes the site's
+creates them with the `publish-shawnbot` skill, which encodes the site's
 conventions:
 
 - Front matter: `title` (sentence case, becomes the H1), `date`,

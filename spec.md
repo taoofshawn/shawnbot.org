@@ -53,7 +53,7 @@ content/
   <topic>/                           # one top-level folder per topic (e.g. networking/, homelab/, llm-tools/)
     _index.md                        # topic landing page (one-line description of the topic)
     <note>.md                        # a note
-.agents/skills/notes-publisher/SKILL.md   # agent skill (see §5)
+.agents/skills/publish-shawnbot/SKILL.md    # agent skill (see §5)
 .agents/skills/frontend-design/           # installed anthropic skill (done)
 .gitignore
 README.md                            # human-facing quickstart (build, preview, deploy)
@@ -84,9 +84,9 @@ Conventions:
 - No timestamps in filenames (unlike shawndo.com blog posts); notes are topic-organized, not date-organized. `date` is front matter only.
 - Images, if any, live in the note's folder (`note-name/` folder with `index.md` + assets), so they get processed and referenced portably.
 
-## 5. Agent skill: `notes-publisher`
+## 5. Agent skill: `publish-shawnbot`
 
-Location: `.agents/skills/notes-publisher/SKILL.md`. It must contain, self-contained:
+Location: `.agents/skills/publish-shawnbot/SKILL.md`. It must contain, self-contained:
 
 1. **When to use** — any request whose output is a note/reference document destined for shawnbot.org (research write-ups, how-tos, decision records).
 2. **Deciding placement** — list existing topics (read `content/*/`), pick the best-fit topic or justify a new one; naming rules for topics and notes.
@@ -112,7 +112,7 @@ No GitHub Pages or Netlify involved; the artifact is a container image, same as 
 
 ```mermaid
 flowchart TD
-    A["Agent runs the<br/>notes-publisher skill"] --> B{"Note fits an<br/>existing topic?"}
+    A["Agent runs the<br/>publish-shawnbot skill"] --> B{"Note fits an<br/>existing topic?"}
     B -- "yes" --> D["Add note to<br/>content/&lt;topic&gt;/&lt;note&gt;.md"]
     B -- "no" --> C["Create new topic folder<br/>(few, broad topics)"] --> D
     D --> E["Front matter: title, date,<br/>summary, tags"]
@@ -165,7 +165,7 @@ Comments, analytics, per-note access control, versioning UI, multi-user editing,
 1. Scaffold repo: `hugo.toml`, hugo-book theme, sample content (2 topics, 3–4 notes) → verify `hugo server` renders.
 2. Dockerfile + nginx.conf + CI workflow → verify image builds and serves locally (`docker run`), Pagefind search works.
 3. Design pass with frontend-design skill (typography, palette, search UI placement) → verify against §8.
-4. Write `.agents/skills/notes-publisher/SKILL.md` → verify by having an agent create a real note end-to-end.
+4. Write `.agents/skills/publish-shawnbot/SKILL.md` → verify by having an agent create a real note end-to-end.
 5. Enable Flux image automation (§7) → verify end-to-end: note push → live on shawnbot.org.
 
 ## 11. Open questions

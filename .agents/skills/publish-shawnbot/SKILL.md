@@ -1,5 +1,5 @@
 ---
-name: notes-publisher
+name: publish-shawnbot
 description: Create, edit, organize, and publish notes to shawnbot.org. Use when the user asks to research a topic and write it up as a note, or to update an existing note on the site.
 ---
 
