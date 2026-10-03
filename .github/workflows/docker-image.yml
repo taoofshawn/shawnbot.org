@@ -1,0 +1,30 @@
+name: build and push docker image
+on:
+  push:
+    branches:
+      - 'main'
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: login
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GHCR_TOKEN }}
+
+    - name: build and push
+      run: |
+        GHREPO=ghcr.io/${{ github.repository }}
+        TAG=$(date +%Y%m%d_%H%M)
+        docker build . --no-cache --file Dockerfile --tag $GHREPO:$TAG
+        docker tag $GHREPO:$TAG $GHREPO:latest
+        docker push $GHREPO:$TAG
+        docker push $GHREPO:latest
