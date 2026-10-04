@@ -46,9 +46,21 @@ and emits more fumes — the reason it belongs in a garage, not an apartment.
 
 ## Cost: one spool vs a service bureau
 
-Two complete sets (2 ducts + 8 risers) in ASA-CF need roughly **630–990 g**
-of filament — one 1 kg spool covers it, tightly; two spools leave margin
-for a failed duct print. That is **~$27–$54 in material**.
+Two complete sets (2 ducts + 8 tall risers) in ASA-CF (density ~1.2 g/cm³),
+by infill choice — recommended settings first:
+
+| Duct infill | Riser infill | Filament (2 sets) | Spools (1 kg) |
+|---|---|---|---|
+| **15%** (recommended) | **100%** (recommended) | ~735 g | 1 (tight) |
+| **20%** (recommended) | **100%** (recommended) | ~835 g | 1 (tight) |
+| 15% | 60% | ~665 g | 1 (comfortable) |
+| 25% | 100% | ~935 g | 1 (barely) |
+| 40% | 100% | ~1,235 g | 2 |
+
+Each estimate includes ~10% for supports and failed first layers. The
+recommended settings fit one 1 kg spool with no margin for a failed duct
+print; buying two spools (~$54) covers every row with leftover stock. That
+is **~$27–$54 in material**.
 
 Service-bureau quotes for the same parts (2026 market data, FDM):
 
