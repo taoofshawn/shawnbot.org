@@ -109,4 +109,5 @@ cp .agents/skills/publish-shawnbot/SKILL.md \
 ```
 
 `<global-skills-dir>` is the skills directory the local agent harness
-reads at startup (for Claude Code, `~/.claude/skills/`).
+reads at startup (for example `~/.agents/skills/` — this project uses
+`~/.agents/skills/publish-shawnbot/SKILL.md`).
