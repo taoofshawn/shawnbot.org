@@ -2,6 +2,15 @@
 
 Agent-written notes knowledge base, built with [Hugo](https://gohugo.io/) and the [hugo-book](https://github.com/alex-shpak/hugo-book) theme (vendored in `themes/book`).
 
+## Quick start (new machine)
+
+```sh
+git clone git@github.com:taoofshawn/shawnbot.org.git ~/code/github.com/taoofshawn/shawnbot.org
+cp -r ~/code/github.com/taoofshawn/shawnbot.org/.agents/skills/publish-shawnbot ~/.agents/skills/
+```
+
+Requires only your SSH keys. The second step installs the agent skill globally so any agent on the machine can publish notes from any project.
+
 ## Build
 
 ```powershell
