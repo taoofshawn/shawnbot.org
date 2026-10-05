@@ -14,7 +14,9 @@ disableKinds = ['RSS']
   BookSection = '*'
 
 [menu]
-  [[menu.after]]
+  # menu.before renders above the section tree in the sidebar (menu.after
+  # put Search at the bottom of the list)
+  [[menu.before]]
     name = "Search"
     url = "/search/"
-    weight = 100
+    weight = 1
