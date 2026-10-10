@@ -33,11 +33,10 @@
     code:             ui-monospace stack
     body 17px (--font-size: 106.25%), prose line-height 1.7.
 
-  Layout: theme structure untouched; article measure capped at 35rem
-  (~70-75 characters at 17px, under the 80-character spec — a ch-based cap
-  overshoots because ch is the digit width, wider than the average glyph),
-  line-height 1.7, left-aligned ragged right; the theme's max-width: 56rem
-  mobile breakpoint is kept as-is.
+  Layout: theme structure untouched; container and article are fully fluid —
+  the center column grows with the browser while the 16rem sidebars stay
+  fixed, line-height 1.7, left-aligned ragged right; the theme's max-width:
+  56rem mobile breakpoint is kept as-is.
 
   == Anti-default review (what changed and why) ==
   - Draft 1: warm paper + terracotta links — rejected (skill tell #1:
@@ -78,6 +77,9 @@
 
   /* 17px body; rem-based theme spacing scales with it */
   --font-size: 106.25%;
+
+  /* Fluid layout: center column grows with the browser; sidebars stay 16rem */
+  --container-max-width: 100%;
 }
 
 /* ---------- Palette: dark (higher specificity than the :root block) ---------- */
@@ -113,7 +115,6 @@
 .markdown {
   font-family: var(--body-font);
   line-height: 1.7;
-  max-width: 35rem;
 }
 
 .markdown h1,
