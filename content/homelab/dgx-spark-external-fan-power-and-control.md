@@ -1,6 +1,7 @@
 ---
 title: "Cooling a DGX Spark with an External 120 mm Fan"
 date: 2026-10-03
+lastmod: 2026-10-10
 summary: "How to power and RPM-control an external 120 mm duct fan for a GB10 machine from a 5 V USB-C port, a $28 thermostat, or a scripted controller reading nvidia-smi."
 tags: [dgx-spark, cooling, fans, homelab]
 ---
@@ -71,3 +72,80 @@ always. Fine if fan noise never bothers you.
   matching the designer's measurements.
 - The Spark's internal fans remain in control of the heatsink; the external
   fan is assistance, not replacement.
+
+## Appendix: full parts list for the ESP32 fan controller
+
+The ESP32 option above compresses to "~$10 in parts accepting a duty-cycle
+value over network or MQTT, fan powered by a 12 V wall wart." Here is the
+complete bill of materials behind that one-liner — the control side, the
+power side, and the fan side.
+
+### Control side (the "$10 in parts")
+
+| Part | Spec | Qty | ~Cost | Notes |
+|---|---|---|---|---|
+| ESP32 dev board | ESP32-C3 **SuperMini** or classic ESP32 DevKitC | 1 | $3–8 | C3 SuperMini is tiny and ~$3; any board with LEDC PWM works with ESPHome. Wi-Fi needed if you're sending duty over network/MQTT rather than USB |
+| 4-pin PWM fan connector | Dupont/JST-XH 4-pin header, or steal wires from a $2 fan extension cable | 1 | $1–2 | Cleaner than soldering to the fan — keeps the Noctua stock connector usable |
+| Pull-up resistor | 10 kΩ (any 1/4 W) | 1 | $0.05 | Tach line is open-collector; pull it to **3.3 V, never 5 V or 12 V** |
+| Series resistor (optional) | 100–330 Ω | 1 | $0.05 | In line with the PWM signal; cheap insurance, most fans don't need it |
+| Perfboard / breadboard + headers | — | 1 | $2–3 | Or heatshrink the SuperMini directly for a permanent install |
+| 5 V → 3.3 V awareness | nothing to buy | — | — | ESP32 GPIO is 3.3 V. Noctua 4-pin fans accept a 3.3 V PWM signal fine (Intel spec says 5 V but 3.3 V works across the board) |
+
+### Power side
+
+| Part | Spec | Qty | ~Cost | Notes |
+|---|---|---|---|---|
+| 12 V PSU (wall wart) | 12 V DC, ≥1 A barrel jack | 1 | $8–10 | An NF-A12x25 draws only ~0.05 A, but spec 1 A+ headroom if you ever run a high-static-pressure fan (Arctic S12038-class server fans pull ~1 A+) |
+| Buck converter | mini-360 / MP1584 module, 12 V → 5 V | 1 | $2 | Powers the ESP32 from the same 12 V brick so there's one wall plug. Alternative: power the ESP32 from any old USB charger — then skip the buck |
+| Barrel jack adapter / DC screw terminal | 5.5×2.1 mm | 1 | $1–2 | To split 12 V to both fan and buck cleanly |
+| 2510 connector (optional) | PWM fan male header style | — | $1 | If you want a fully stock-looking harness |
+
+### Fan side (the duct fan)
+
+| Part | Spec | Qty | ~Cost |
+|---|---|---|---|
+| 120 mm fan | **4-pin PWM, 12 V** — Noctua NF-A12x25 PWM (~$30) or Arctic P12 PWM (~$10) | 1 | $10–30 |
+
+The critical gotcha: it must be the **4-pin PWM version at 12 V**, not the
+5 V USB-C variant discussed above. The 5 V fans have their control logic
+built for USB power and don't expose a standard PWM input the ESP32 can
+drive.
+
+### Totals
+
+- Budget build (Arctic P12, SuperMini, buck): **~$27–35**
+- Noctua build: **~$50–60**
+
+### Wiring
+
+```text
+12V brick ──┬── fan pin 1 (VCC 12V)      ← fan's red wire
+            └── buck IN+ ── 5V ── ESP32 5V/VIN
+GND ─────────┬── fan pin 2 (GND)         ← black wire
+             └── buck IN− / ESP32 GND
+ESP32 GPIO (LEDC) ── 100–330Ω ── fan pin 3 (PWM, blue)   ← 25 kHz output
+fan pin 4 (tach, green) ── 10kΩ pull-up to 3.3V ── ESP32 input (pulse_counter)
+```
+
+Per the Intel 4-wire fan spec: PWM at **25 kHz**, duty = fan speed; tach
+emits 2 pulses per revolution.
+
+### Software
+
+- **ESPHome config:** a `ledc` output at 25 kHz driving a `fan` entity,
+  plus a `pulse_counter` sensor on the tach pin for real RPM read-back.
+  Expose it via the native ESPHome API (if you run Home Assistant), MQTT,
+  or a tiny HTTP endpoint.
+- **On the Spark:** a systemd timer polling
+  `nvidia-smi --query-gpu=temperature.gpu` every 5–10 s and posting the
+  duty from the formula above (`clamp(30 + (temp − 45) × 2, 30, 100)`).
+- Bonus read-back loop: log the tach RPM alongside duty so you can detect
+  a stalled or dead fan.
+
+Real-world validation from the same thread: matousjk
+([post #335](https://forums.developer.nvidia.com/t/dual-spark-ducted-cooling-cage/365302/335))
+built exactly this shape of solution — an ESP32-C3 polling a Prometheus
+exporter ([ateska/dgx-spark-prometheus](https://github.com/ateska/dgx-spark-prometheus))
+for GPU/CPU temps and driving a Noctua NF-A14 industrialPPC on a custom
+fan curve. That's the same architecture at 140 mm; it validates the ESP32
+route beyond theory.
