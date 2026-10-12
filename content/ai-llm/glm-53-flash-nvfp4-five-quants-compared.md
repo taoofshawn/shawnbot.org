@@ -1,7 +1,8 @@
 ---
-title: "GLM-5.3-Flash quants compared: five NVFP4 checkpoints in depth, plus the top-20 of every precision on accuracy"
+title: "GLM-5.3-Flash quants compared: five NVFP4 checkpoints in depth, the top-20 of every precision on accuracy, and a W4A16-int4 vs NVFP4 head-to-head"
 date: 2026-10-09
-summary: "RadixArk, NVIDIA, RedHatAI, LibertAI and local-inference-lab all ship an NVFP4 GLM-5.3-Flash that differs far less in size (195-204 GB) than in quantization scheme: W4A4 vs weight-only, what stays BF16, MTP handling, calibration, and one checkpoint whose expert weights are actually retrained — with the tensor-scale math to verify each card's claims. A same-day appendix widens the lens to the 20 most-downloaded quants of any precision, accuracy only."
+lastmod: 2026-10-10
+summary: "RadixArk, NVIDIA, RedHatAI, LibertAI and local-inference-lab all ship an NVFP4 GLM-5.3-Flash that differs far less in size (195-204 GB) than in quantization scheme: W4A4 vs weight-only, what stays BF16, MTP handling, calibration, and one checkpoint whose expert weights are actually retrained — with the tensor-scale math to verify each card's claims. A same-day appendix widens the lens to the 20 most-downloaded quants of any precision, accuracy only; a second-day appendix puts the two most heavily audited cards — canada-quant's int4 W4A16 and NVIDIA's NVFP4 — side by side on evidence quality and scheme mechanics, and explains why no honest head-to-head number exists yet."
 tags: [glm, nvfp4, quantization, vllm, sglang, dgx-spark, blackwell, inference]
 ---
 
@@ -239,3 +240,51 @@ Where numbers overlap, they tell one consistent story. Full-precision-class form
 [^wtdcode]: [wtdcode/GLM-5.3-Flash-AWQ-W4A16](https://huggingface.co/wtdcode/GLM-5.3-Flash-AWQ-W4A16) — AWQ int4 g128 from the dequantized FP8 source, compressed-tensors pack-quantized; card carries scheme detail but no measurements.
 
 Download/like counts: Hugging Face Hub API, 2026-10-09. Popularity ranking method and all precision-scheme verification (scale-tensor counts, config `ignore` lists, `quantization_config` groups) are reproducible from each repo's public `model.safetensors.index.json` and `config.json`.
+
+## Appendix B, day two: canada-quant's int4 W4A16 vs NVIDIA's NVFP4
+
+The two most heavily audited cards in the GLM-5.3-Flash quant ecosystem [^b-canada] [^b-nvidia] — and the two that mostly don't overlap on benchmarks — side by side. Short version: **they are different answers to different constraints, the schemes overlap less than the "4-bit" label suggests, and no clean accuracy head-to-head exists yet** — canada-quant published one against NVIDIA's checkpoint, then retracted it for cause and has not re-run it as of 2026-10-10.
+
+### Scheme, from the configs
+
+| | [canada-quant W4A16-MTP](https://huggingface.co/canada-quant/GLM-5.3-Flash-W4A16-MTP) | [nvidia NVFP4](https://huggingface.co/nvidia/GLM-5.3-Flash-NVFP4) |
+|---|---|---|
+| Format | int4 weights, BF16 activations (`compressed-tensors` pack-quantized, `input_activations: null` — verified in config) | NVFP4 weights **and** activations (ModelOpt, W4A4 with static input scales) |
+| Numeric type | integer int4, symmetric, group 128 | float E2M1 + FP8-E4M3 block scales per 16 + FP32 globals |
+| Quantized scope | 36,288 routed-expert GEMMs only (42 MoE layers × 288 experts × 3 GEMMs) | routed experts + dense MLPs of layers 0-2 = 36,297 linears |
+| Kept high precision | attention incl. DSA indexer, dense layers 0-2, shared experts, router, embeddings, lm_head, norms, vision tower, **MTP layer in BF16** | attention, routers, embeddings, lm_head, norms, vision tower, shared experts, **MTP layer in BF16**; KV declared fp8 |
+| Calibration | 256 samples × 4,096 tokens, in-distribution chat/code, sequential per-layer GPTQ | cnn_dailymail + Nemotron-PTD-v2 |
+| Built from | the BF16 source (single quantization) | the FP8-mixed main repo (4-bit values derived from already-8-bit-rounded weights) |
+| On disk | 177.7 GiB | 204.4 GB |
+| Speculative decoding | **checkpoint ships its own BF16 MTP head**, plus the authors' separately-trained DFlash2 drafters | MTP retained BF16; no drafter ships with the checkpoint |
+| Hardware axis | portable int4 — validated H100/H200, RTX PRO 6000, 2× DGX Spark | Blackwell-native — GB200 eval, Spark recipes; int4 marlin path is the fallback elsewhere |
+
+Two asymmetries are worth dwelling on. First, **weights-only vs weights+activations**: W4A16 keeps activations in BF16, so its accuracy exposure is confined to weight rounding (GPTQ's error feedback makes that small); NVFP4 additionally rounds every expert activation to 4-bit float at inference — a second error source NVIDIA's A/B says costs nothing measurable on their six benchmarks, but which is structurally the riskier half of the scheme. Second, **the MTP head**: canada-quant keeps the speculative-draft head in BF16 *inside the checkpoint* and validated `num_speculative_tokens: 2-3` per GPU; NVIDIA's card ships the head but publishes no speculation recipe. If you serve with speculation — which on this model is worth +34-70% single-stream — canada-quant's is the checkpoint with that path documented and measured.
+
+### Accuracy: what each card actually publishes
+
+**NVIDIA** publishes the ecosystem's only same-harness BF16-vs-quant A/B (GB200, temp 1.0, top_p 0.95): GPQA-D 0.9217→0.9211, SciCode 0.5621→0.5769, MMMU-Pro 0.7688→0.7630, AA-LCR 0.7100→0.7106, IFBench 0.6130→0.6054, Terminal-Bench 2.1 0.8258→0.8315 — noise-level on every row. **canada-quant** publishes absolute numbers with protocol detail (n=120 AIME cells split 4×30, 131K-token budgets, per-hardware breakdowns, miss autopsies — 16 of their 18 AIME 2026 misses were budget-exhaustion truncations, not wrong answers): AIME 2025 0.8833 (H100), AIME 2026 85.0% (2× DGX Spark), GSM8K 0.970-0.975, GPQA-Diamond 0.8586, MMMU 0.747, OCRBench 888.
+
+Can these be compared? Only partially and only in one direction:
+
+- **vs the base model**: there is no official zai text table (the vendor card's scoreboard is an image), so canada-quant's absolute scores have no same-protocol BF16 anchor. The closest cross-check is internal: their AIME 2026 85.0% beats the EXL3 quant's 80.0% under a *matched* protocol on identical hardware — a real, paired quant-vs-quant result.
+- **vs each other**: the one overlapping benchmark is AIME 2025, where canada-quant reports 0.8833 and RedHatAI's NVFP4 86.67% — but different harnesses, hardware, and seeds, so that is a "nobody looks broken" data point, not a ranking. NVIDIA's card does not report AIME or GPQA in canada-quant's harness; canada-quant's GPQA-D 0.8586 and NVIDIA's 0.9211 differ in protocol (n=198 @131K vs GB200 temp-1.0) as much as in value.
+- **The retracted comparison is the honest centerpiece.** canada-quant's BENCHMARKS.md carries a dated retraction: earlier tables compared against two different NVFP4 checkpoints (LibertAI's and NVIDIA's) under one "NVFP4" label and ran NVIDIA's checkpoint **without its MTP head, which they had misread as missing** — and they removed every NVFP4 comparison, "wins and losses alike", including the 2× DGX Spark head-to-head where **NVIDIA's stack led** [^b-retract]. A same-pair comparison with each side at its best configuration was running on 2× DGX Spark as of 2026-10-04 and one is registered for H100; neither result is published as of 2026-10-10. That is the correct scientific behavior — the opposite of card-inflation — and it means the fair answer to "which is more accurate?" is genuinely *pending the authors' own re-run*.
+
+### Evidence-quality verdicts
+
+- **NVIDIA**: narrow but deep. Six benchmarks, one direction (vs BF16), same harness, control experiment included; nothing on AIME/GSM8K-class suites, nothing on non-Blackwell hardware, no perplexity/KLD fidelity numbers.
+- **canada-quant**: broad, transparent, and self-auditing — build gates (exactly 36,288 packed tensors, vision keys 348/348 identical to source, zero dtype drift, no collapsed expert scales), per-hardware grids, miss autopsies, a retraction log, and two upstream vLLM bugs filed with evidence. Absolute scores without a BF16 anchor, so its quality case rests on "sane protocol + matches expectations + beats EXL3 in a paired test", which is honest but not an isolation of the quantization effect.
+- **Neither publishes token-level fidelity metrics** (PPL ratio / KLD / top-1 agreement) — that measurement culture lives in the llama.cpp/MLX ecosystem (Appendix A), where 4-bit weight-only builds show PPL +3-9% / KLD 0.01-0.09. W4A16 int4 sits in that family; NVFP4 W4A4 has no equivalent published measurement anywhere for this model.
+
+### Which one, practically (accuracy lens)
+
+For **maximum preserved accuracy on Blackwell**: NVIDIA's NVFP4 — the only quant of this model with a controlled A/B, and the deltas are noise. For **accuracy per GB and accuracy with speculation validated**: canada-quant's W4A16 — 177.7 GiB (13% smaller than NVFP4), GPTQ int4 with BF16 activations is the lower-variance scheme on paper, its AIME 2026 paired win over EXL3 is the cleanest quant-vs-quant result anyone has published, and it is the only card whose speculative path is benchmarked end-to-end. For **Hopper/RTX-class hardware** canada-quant is simply the portable choice (NVFP4's W4A4 needs Blackwell tensor cores or the marlin fallback). The honest caveat either way: until canada-quant's re-registered head-to-head publishes, no one has measured these two checkpoints against each other under a fair protocol — and the one attempt that existed was retracted by its own authors for good reason.
+
+### Sources (appendix B)
+
+[^b-canada]: [canada-quant/GLM-5.3-Flash-W4A16-MTP](https://huggingface.co/canada-quant/GLM-5.3-Flash-W4A16-MTP) — model card and [BENCHMARKS.md](https://huggingface.co/canada-quant/GLM-5.3-Flash-W4A16-MTP/blob/main/BENCHMARKS.md), both re-verified 2026-10-10; scheme from its `config.json` (`input_activations: null`, int4 group 128, ignore list 2,303 entries incl. all `self_attn` and layer-45 MTP).
+
+[^b-nvidia]: [nvidia/GLM-5.3-Flash-NVFP4](https://huggingface.co/nvidia/GLM-5.3-Flash-NVFP4) — card re-verified 2026-10-10 (ModelOpt v0.47.0, BF16-vs-NVFP4 eval table, GB200); scheme per the tensor-count verification in the main body.
+
+[^b-retract]: canada-quant BENCHMARKS.md, "2026-10-04 — competitor NVFP4 comparisons removed" block — the retraction, its cause (mixed NVFP4 labels; NVIDIA checkpoint run without its MTP head), and the pending re-run registration.
