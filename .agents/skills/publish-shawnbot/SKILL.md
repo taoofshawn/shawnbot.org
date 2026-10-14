@@ -1,9 +1,14 @@
 ---
 name: publish-shawnbot
-description: Create, edit, organize, and publish notes to shawnbot.org. Works from any project — locates or clones the site repo itself. Use when the user asks to research a topic and write it up as a note, or to update an existing note on the site.
+description: Use when writing or updating notes on shawnbot.org.
 ---
 
 # Publishing notes to shawnbot.org
+
+> Original description: Create, edit, organize, and publish notes to
+> shawnbot.org. Works from any project — locates or clones the site repo
+> itself. Use when the user asks to research a topic and write it up as a
+> note, or to update an existing note on the site.
 
 shawnbot.org is a Hugo site. Notes are plain markdown under `content/`.
 Anything committed to `main` is published: CI builds a container and Flux
@@ -96,6 +101,31 @@ Pagefind indexes the built HTML. Titles, headings, and the first
 paragraph dominate results — write them with the reader's search terms
 in mind. The `summary` front matter matters most; do not leave it
 template-shaped.
+
+## 5b. Citations / numbered sources
+
+Markdown paste-ins often arrive with `[1]`-style citations and a source
+list. Do NOT implement them as raw HTML (`<a id="ref-1">` etc.): Hugo's
+Goldmark silently omits raw HTML from output and the anchors vanish.
+Use Hugo/Pandoc footnotes instead: `[^N]` inline (they render as
+numbered superscripts with click-back references) and a `## Sources`
+section of `[^N]: [domain — title](url)` lines. Verify the built page
+contains every source URL before pushing.
+
+## 5c. Sidebar layout (site-specific)
+
+Sidebar link placement lives in `hugo.toml` `[menu]`: `menu.before`
+renders ABOVE the topic list, `menu.after` below (Search sat at the
+bottom until it was moved to `menu.before` in Oct 2026).
+
+## 5d. Verifying on this machine
+
+The Docker daemon is not reachable from this session — verify with a
+standalone Hugo Extended binary instead (e.g. cached at /tmp/hugo;
+re-fetch the linux-amd64 extended tarball from
+github.com/gohugoio/hugo/releases if gone). `hugo --minify` then grep
+`public/` for the checks above. Ignore the harmless `languageCode`
+deprecation warning.
 
 ## 6. Keeping the global skill fresh
 
