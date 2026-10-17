@@ -1,7 +1,8 @@
 ---
 title: "NVIDIA's GLM-5.3-Flash-FP4-Local: the QAD re-quant decoded, and why it can't swap into the 4× switchless NVFP4 lane"
 date: 2026-10-16
-summary: "NVIDIA's new FP4-Local checkpoint re-quantizes GLM-5.3-Flash with quantization-aware distillation and compressed expert scales, cutting it to 164.6 GiB with near-baseline accuracy — but it requires a forked vLLM stack (B12X kernels, modelopt_mixed loader) that has never run TP4 on a 4-node ring, so it is a new lane, not a weight swap."
+lastmod: 2026-10-16
+summary: "NVIDIA's new FP4-Local checkpoint re-quantizes GLM-5.3-Flash with quantization-aware distillation and compressed expert scales, cutting it to 164.6 GiB with near-baseline accuracy — but it requires a forked vLLM stack (B12X kernels, modelopt_mixed loader), and the checkpoint's own author says 4× Spark clusters gain little from it: the quant exists to buy back KV cache on 2-node setups, a constraint four nodes don't have."
 tags: [glm, nvfp4, fp4, quantization, qad, vllm, b12x, dgx-spark, inference]
 ---
 
@@ -66,7 +67,7 @@ The [eugr/spark-vllm-docker](https://github.com/eugr/spark-vllm-docker) changelo
 
 Two more implications fall out of that:
 
-- **Native MTP is back on the table.** On the stock NVFP4 pack, the MTP head is BF16 and no sm121 backend could serve an NVFP4 target with an unquantized draft MoE — which is why our lane runs the DFlash2 drafter (itself licensed CC BY-NC-ND, no derivative re-encodes allowed). FP4-Local ships the MTP layer's experts quantized in-checkpoint, and the validated stack drafts from it natively. If we ever wanted to shed the DFlash2 license constraint, this is the first GLM-5.3-Flash checkpoint that does it on Spark hardware.
+- **Native MTP on Spark is a stack feature, not an FP4-Local feature.** On our current stack (knapcio-family), the stock pack's BF16 MTP head has no serving path — which is why the lane runs the DFlash2 drafter (itself licensed CC BY-NC-ND, no derivative re-encodes allowed). The B12X stack changes that for *both* checkpoints: a community 4-node recipe (detailed below) runs the **stock NVFP4 checkpoint with native adaptive MTP (K1–K5, window 32)**, and FP4-Local additionally ships its MTP-layer experts quantized in-checkpoint. Shedding the DFlash2 license constraint is therefore a decision about adopting the B12X stack, not about which checkpoint is loaded.
 - **The transport story is different.** The card's Spark launch uses `VLLM_ENABLE_ROCE_ALLREDUCE=1` plus vanilla NCCL env — the b12x stack's own collective paths — not the four-PF patched-NCCL switchless contract our ring is built around.
 
 ## Can it replace the weight in the NVFP4 switchless recipe? No — and it isn't close
@@ -78,15 +79,28 @@ The short version: **there is no weight-swap path**. Our lane's premise is the s
 | Weights | 190.4 GiB, ~47.6 GiB/rank | 164.6 GiB, ~41.2 GiB/rank |
 | KV at same pin | 20 GiB/rank → ~3.25M tokens | ~26 GiB/rank free-equivalent → ~4.2M tokens (untested) |
 | Accuracy evidence | Same-harness A/B vs BF16, noise-level, 6 benchmarks | Same-harness A/B vs BF16, 2 benchmarks, different suite; nothing vs stock NVFP4 |
-| Serving stack | Stock-capable vLLM + site patches, community-validated on this exact topology | Forked vLLM + B12X kernels, validated **only** on 2-node TP2 (Spark) and 2× RTX; no 4× GLM recipe exists anywhere |
+| Serving stack | Stock-capable vLLM + site patches, community-validated on this exact topology | Forked vLLM + B12X kernels — NVIDIA/eugr-validated at 2-node TP2 (Spark) and 2× RTX; community-proven at 4× TP4 but **only with the stock NVFP4 checkpoint** (davedgd's recipe, below), not with FP4-Local |
 | Transport | Four-PF switchless ring, measured, documented | ROCE allreduce paths + stock NCCL env; untested against our switchless contract |
 | Speculative decoding | DFlash2 (external drafter, CC BY-NC-ND) | Native MTP n=5 (in-checkpoint, no license tangle) |
 | Attention precision | BF16 (corruption-gate history) | MXFP8 (gates must be re-earned) |
 | Measured on this ring | 44.7–96.3 tok/s c1, 12+ boot receipts | nothing — zero data points |
 
-## Verdict
+## The author's own verdict on 4× Spark clusters
 
-FP4-Local is a genuinely interesting artifact — NVIDIA validating QAD + compressed scales as the new default for local Blackwell serving, with the accuracy table to back it — and if we were standing up a 2-node Spark pair from scratch today, its recipe would be the obvious pick over the older local-inference-lab checkpoint it replaces. But for the 4-node switchless lane it is not an upgrade path in its current state: the memory win (~26 GiB, real as it is) buys KV capacity we already stretch via the rung ladder, the accuracy win is unproven against the checkpoint we serve, and the cost is abandoning an engine/transport combination that took a documented Phase-E effort to validate. The watch condition that changes the verdict: upstream vLLM landing `csf_32x2_v1` + `modelopt_mixed` support (making the checkpoint loadable on stock-capable stacks), or a validated 4×-Spark GLM FP4-Local recipe appearing in the eugr stack. Until one of those lands, this stays a record-and-monitor item, and any future adoption is a new lane — never an in-place weight swap.
+The day after publication, the checkpoint's author settled the 4-node question directly on the [main GLM-5.3-Flash forum thread](https://forums.developer.nvidia.com/t/glm-5-3-flash-320b-total-parameters-18b-active/381350/850). Post #850 (eugr_nv, 2026-10-16): the checkpoint announcement, with the spark-vllm-docker recipe updated to match (#853). Then davedgd — who was already running GLM-5.3-Flash at **TP4 across 4× GB10 Sparks on the B12X stack** (`glm53-b12x:candidate-2026-10-10`, 1M context, 7 concurrent 1M-context sessions, up to 7 concurrent at 1M depth) with the *stock* NVFP4 checkpoint — asked whether to adopt the new quant at 4× (#856). The author's reply (#858):
+
+> "For 4x Sparks there is not much benefit using this quant, so I'd just continue using the one you have."
+
+The reasoning, reconstructed from the thread plus the checkpoint math above:
+
+1. **FP4-Local solves a problem 4× Spark doesn't have.** Davedgd restates the design goal himself (#859): *"a goal with this new quant was increasing the KV cache pool for 2x Spark by shrinking the weights while retaining as much quality as possible."* The whole precision shuffle (attention → FP8/MXFP8, lm_head → MXFP8) exists to wedge a 320B MoE plus a usable KV pool into two 128 GB boxes. Four nodes already have that memory by topology: stock NVFP4 at ~47.6 GiB/rank across 4×128 GB leaves ample KV headroom — our lane runs 1M context with a 20 GiB/rank pin and still has proven-but-unused 24/28 GiB rungs.
+2. **Quality is the currency, and at 4× it buys nothing.** The stock NVFP4's near-lossless accuracy profile comes from what it *doesn't* quantize (BF16 attention, BF16 MTP, BF16 lm_head). FP4-Local spends exactly that to fit 2 nodes. At 4×, adopting it means paying a small accuracy cost (−0.8 pp GPQA vs BF16, attention in FP8) in exchange for memory the cluster doesn't need — the trade is strictly worse than on 2 nodes, where it's the price of fitting at all.
+3. **Throughput doesn't rescue the case.** The smaller active-path footprint (~35–40% fewer weight bytes per decode step at c1, computed from the configs) sounds like a speed win, but on a ring whose c1 decode is latency-bound the realized gain is the modest ~10–20% kind (the measured analogue: knapcio's lossless8 conversion, same kind of change, bought ~10–15%), prefill is compute-bound and flat, and the B12X stack itself gives some of it back (`VLLM_B12X_MOE_FP4_FORCE_A16=1` forces 16-bit compute on FP4 MoE paths; the RTX config even disables the MXFP8 lm_head). Meanwhile the checkpoint's *real* throughput gift — KV headroom → higher concurrency — is the thing 4 nodes already have.
+4. **Davedgd's 4-node run is the existence proof.** His recipe (#856) achieves exactly what FP4-Local was built to deliver on 2 nodes — ~7 concurrent 1M-context sessions — using the stock checkpoint on the same B12X stack, with native adaptive MTP (K1–K5) instead of DFlash2. Nothing in FP4-Local's feature list adds value on top of that config at 4 nodes.
+
+
+
+FP4-Local is a genuinely interesting artifact — NVIDIA validating QAD + compressed scales as the new default for local Blackwell serving, with the accuracy table to back it — and if we were standing up a 2-node Spark pair from scratch today, its recipe would be the obvious pick over the older local-inference-lab checkpoint it replaces. But for the 4-node switchless lane it is not an upgrade path in its current state — and the checkpoint's own author says the same thing. The memory win (~26 GiB, real as it is) buys KV capacity we already stretch via the rung ladder, the accuracy win is unproven against the checkpoint we serve, and the cost is abandoning an engine/transport combination that took a documented Phase-E effort to validate. The watch conditions that change the verdict: upstream vLLM landing `csf_32x2_v1` + `modelopt_mixed` support (making the checkpoint loadable on stock-capable stacks), or a validated 4×-Spark GLM FP4-Local recipe appearing — now materially cheaper to attempt, since davedgd's recipe proves the B12X stack at 4× TP4. Until one of those lands, this stays a record-and-monitor item, and any future adoption is a new lane — never an in-place weight swap.
 
 ## Sources
 
@@ -95,4 +109,5 @@ FP4-Local is a genuinely interesting artifact — NVIDIA validating QAD + compre
 - [NVIDIA blog: How Quantization-Aware Training Enables Low-Precision Accuracy Recovery](https://developer.nvidia.com/blog/how-quantization-aware-training-enables-low-precision-accuracy-recovery/) — the QAD method.
 - [eugr/spark-vllm-docker](https://github.com/eugr/spark-vllm-docker) — README/changelog (2026-10-05 switchless 4× ring support; 2026-10-07 B12X-into-FlashInfer; 2026-10-16 GLM FP4-Local recipe switch) and the [glm-5.3-flash.yaml recipe](https://github.com/eugr/spark-vllm-docker/blob/main/recipes/glm-5.3-flash.yaml) (TP2/500K/4-seqs, native MTP n=5).
 - [local-inference-lab/vllm](https://github.com/local-inference-lab/vllm) (B12X fork) and [local-inference-lab/flashinfer](https://github.com/local-inference-lab/flashinfer) — the B12X kernel stack.
-- Shard/file sizes from the Hugging Face blobs API (2026-10-16). NVIDIA developer forum search was inaccessible (bot-check) during research; forum sentiment on this checkpoint is unverified.
+- [NVIDIA forum thread 381350](https://forums.developer.nvidia.com/t/glm-5-3-flash-320b-total-parameters-18b-active/381350/850) — posts #850/#853 (eugr_nv: FP4-Local announcement + recipe push), #856 (davedgd: his 4× GB10 TP4 B12X recipe on the stock NVFP4 checkpoint — 1M context, adaptive native MTP K1–K5, ~7 concurrent 1M sessions), #858 (eugr_nv: "For 4x Sparks there is not much benefit using this quant, so I'd just continue using the one you have"), #859 (davedgd: the quant's design goal is 2-node KV). All read 2026-10-16 via the Discourse JSON API.
+- Shard/file sizes from the Hugging Face blobs API (2026-10-16).
